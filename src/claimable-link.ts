@@ -1,3 +1,4 @@
+import { Bytes, Address, BigInt } from "@graphprotocol/graph-ts";
 import {
   Cancelled as CancelledEvent,
   Claimed as ClaimedEvent,
@@ -21,6 +22,7 @@ import {
   Refunded,
   SignerUpdated,
   Unpaused,
+  DepositClaimed,
 } from "../generated/schema";
 
 export function handleCancelled(event: CancelledEvent): void {
@@ -36,6 +38,18 @@ export function handleCancelled(event: CancelledEvent): void {
   entity.transactionHash = event.transaction.hash;
 
   entity.save();
+
+  const depositClaimedId = getDepositId(
+    event.params.giver,
+    event.params.token,
+    event.params.transferID
+  );
+
+  let depositClaimedEntity = DepositClaimed.load(depositClaimedId);
+  if (depositClaimedEntity !== null) {
+    depositClaimedEntity.cancelled = true;
+    depositClaimedEntity.save();
+  }
 }
 
 export function handleClaimed(event: ClaimedEvent): void {
@@ -54,6 +68,20 @@ export function handleClaimed(event: ClaimedEvent): void {
   entity.transactionHash = event.transaction.hash;
 
   entity.save();
+
+  const depositClaimedId = getDepositId(
+    event.params.giver,
+    event.params.token,
+    event.params.transferID
+  );
+
+  let depositClaimedEntity = DepositClaimed.load(depositClaimedId);
+  if (depositClaimedEntity !== null) {
+    depositClaimedEntity.recipient = event.params.recipient;
+    depositClaimedEntity.signer = event.params.signer;
+    depositClaimedEntity.claimed = true;
+    depositClaimedEntity.save();
+  }
 }
 
 export function handleDeposited(event: DepositedEvent): void {
@@ -71,6 +99,27 @@ export function handleDeposited(event: DepositedEvent): void {
   entity.transactionHash = event.transaction.hash;
 
   entity.save();
+
+  const depositClaimedId = getDepositId(
+    event.params.giver,
+    event.params.token,
+    event.params.transferID
+  );
+
+  let depositClaimedEntity = DepositClaimed.load(depositClaimedId);
+  if (depositClaimedEntity == null) {
+    depositClaimedEntity = new DepositClaimed(depositClaimedId);
+    depositClaimedEntity.giver = event.params.giver;
+    depositClaimedEntity.token = event.params.token;
+    depositClaimedEntity.transferID = event.params.transferID;
+    depositClaimedEntity.amount = event.params.amount;
+    depositClaimedEntity.recipient = null;
+    depositClaimedEntity.signer = null;
+    depositClaimedEntity.claimed = false;
+    depositClaimedEntity.cancelled = false;
+    depositClaimedEntity.refunded = false;
+    depositClaimedEntity.save();
+  }
 }
 
 export function handleEIP712DomainChanged(
@@ -145,6 +194,18 @@ export function handleRefunded(event: RefundedEvent): void {
   entity.transactionHash = event.transaction.hash;
 
   entity.save();
+
+  const depositClaimedId = getDepositId(
+    event.params.giver,
+    event.params.token,
+    event.params.transferID
+  );
+
+  let depositClaimedEntity = DepositClaimed.load(depositClaimedId);
+  if (depositClaimedEntity !== null) {
+    depositClaimedEntity.refunded = true;
+    depositClaimedEntity.save();
+  }
 }
 
 export function handleSignerUpdated(event: SignerUpdatedEvent): void {
@@ -173,3 +234,15 @@ export function handleUnpaused(event: UnpausedEvent): void {
 
   entity.save();
 }
+
+const getDepositId = (
+  giver: Address,
+  token: Address,
+  transferID: BigInt
+): Bytes => {
+  let hex = transferID.toHex().slice(2); // remove '0x'
+  if (hex.length % 2 !== 0) {
+    hex = `0` + hex;
+  }
+  return giver.concat(token).concat(Bytes.fromHexString(`0x` + hex));
+};

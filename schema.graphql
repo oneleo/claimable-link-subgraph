@@ -93,3 +93,16 @@ type Unpaused @entity(immutable: true) {
   blockTimestamp: BigInt!
   transactionHash: Bytes!
 }
+
+type DepositClaimed @entity(immutable: false) {
+  id: Bytes!
+  giver: Bytes! # address
+  token: Bytes! # address
+  transferID: BigInt! # uint256
+  amount: BigInt! # uint256
+  recipient: Bytes # address, nullable
+  signer: Bytes # address, nullable
+  claimed: Boolean!
+  cancelled: Boolean!
+  refunded: Boolean!
+}
